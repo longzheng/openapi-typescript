@@ -223,9 +223,11 @@ export default function createClient<Paths extends {}, Media extends MediaType =
     useInfiniteQuery: (method, path, init, options, queryClient) => {
       const { pageParamName = "cursor", ...restOptions } = options;
       const { queryKey } = queryOptions(method, path, init);
+      // Append a unique identifier to distinguish infinite queries from regular queries
+      const infiniteQueryKey = [...queryKey, "infinite"];
       return useInfiniteQuery(
         {
-          queryKey,
+          queryKey: infiniteQueryKey as any,
           queryFn: async ({ queryKey: [method, path, init], pageParam = 0, signal }) => {
             const mth = method.toUpperCase() as Uppercase<typeof method>;
             const fn = client[mth] as ClientMethod<Paths, typeof method, Media>;

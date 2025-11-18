@@ -884,6 +884,66 @@ describe("client", () => {
     });
   });
   describe("useInfiniteQuery", () => {
+    it("should not clash with useQuery when used on same endpoint", async () => {
+      const fetchClient = createFetchClient<paths>({ baseUrl });
+      const client = createClient(fetchClient);
+
+      useMockRequestHandler({
+        baseUrl,
+        method: "get",
+        path: "/paginated-data",
+        status: 200,
+        body: { items: [1, 2, 3], nextPage: 1 },
+      });
+
+      function TestComponent() {
+        // Use both useQuery and useInfiniteQuery on the same endpoint
+        const queryResult = client.useQuery("get", "/paginated-data", {
+          params: {
+            query: {
+              limit: 3,
+            },
+          },
+        });
+        const infiniteQueryResult = client.useInfiniteQuery(
+          "get",
+          "/paginated-data",
+          {
+            params: {
+              query: {
+                limit: 3,
+              },
+            },
+          },
+          {
+            getNextPageParam: (lastPage) => lastPage.nextPage,
+            initialPageParam: 0,
+          },
+        );
+
+        return (
+          <div>
+            <div data-testid="query-data">{queryResult.data ? "query-loaded" : "query-loading"}</div>
+            <div data-testid="infinite-data">
+              {infiniteQueryResult.data?.pages ? "infinite-loaded" : "infinite-loading"}
+            </div>
+          </div>
+        );
+      }
+
+      const rendered = render(
+        <QueryClientProvider client={queryClient}>
+          <TestComponent />
+        </QueryClientProvider>,
+      );
+
+      // Both queries should complete successfully without errors
+      await waitFor(() => {
+        expect(rendered.getByTestId("query-data").textContent).toBe("query-loaded");
+        expect(rendered.getByTestId("infinite-data").textContent).toBe("infinite-loaded");
+      });
+    });
+
     it("should fetch data correctly with pagination and include cursor", async () => {
       const fetchClient = createFetchClient<paths>({ baseUrl });
       const client = createClient(fetchClient);
