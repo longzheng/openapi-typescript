@@ -37,6 +37,14 @@ export type QueryKey<
   Init = MaybeOptionalInit<Paths[Path], Method>,
 > = Init extends undefined ? readonly [Method, Path] : readonly [Method, Path, Init];
 
+// InfiniteQueryKey extends QueryKey with an "infinite" marker to prevent cache collisions
+export type InfiniteQueryKey<
+  Paths extends Record<string, Record<HttpMethod, {}>>,
+  Method extends HttpMethod,
+  Path extends PathsWithMethod<Paths, Method>,
+  Init = MaybeOptionalInit<Paths[Path], Method>,
+> = Init extends undefined ? readonly [Method, Path, "infinite"] : readonly [Method, Path, Init, "infinite"];
+
 export type QueryOptionsFunction<Paths extends Record<string, Record<HttpMethod, {}>>, Media extends MediaType> = <
   Method extends HttpMethod,
   Path extends PathsWithMethod<Paths, Method>,
@@ -111,7 +119,7 @@ export type UseInfiniteQueryMethod<Paths extends Record<string, Record<HttpMetho
       Response["data"],
       Response["error"],
       InferSelectReturnType<InfiniteData<Response["data"]>, Options["select"]>,
-      QueryKey<Paths, Method, Path>,
+      InfiniteQueryKey<Paths, Method, Path>,
       unknown
     >,
     "queryKey" | "queryFn"
@@ -224,11 +232,11 @@ export default function createClient<Paths extends {}, Media extends MediaType =
       const { pageParamName = "cursor", ...restOptions } = options;
       const { queryKey } = queryOptions(method, path, init);
       // Append a unique identifier to distinguish infinite queries from regular queries
-      const infiniteQueryKey = [...queryKey, "infinite"];
+      const infiniteQueryKey = [...queryKey, "infinite"] as const;
       return useInfiniteQuery(
         {
-          queryKey: infiniteQueryKey as any,
-          queryFn: async ({ queryKey: [method, path, init], pageParam = 0, signal }) => {
+          queryKey: infiniteQueryKey as InfiniteQueryKey<Paths, typeof method, typeof path>,
+          queryFn: async ({ pageParam = 0, signal }) => {
             const mth = method.toUpperCase() as Uppercase<typeof method>;
             const fn = client[mth] as ClientMethod<Paths, typeof method, Media>;
             const mergedInit = {
